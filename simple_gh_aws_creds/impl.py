@@ -46,6 +46,11 @@ from github import Github, Repository
 
 printer = print
 
+def mask_value(v: str) -> str:
+    if len(v) < 12:
+        raise ValueError(f"{v} is too short")
+    return f"{v[:4]}...{v[-4:]}"
+
 
 @dataclass
 class SetupGitHubRepo:
@@ -75,18 +80,30 @@ class SetupGitHubRepo:
     - Clear separation between setup and teardown operations
     - GitHub Secrets integration for secure credential storage
 
-    :param boto_ses:
-    :param aws_region:
-    :param iam_user_name:
-    :param tags:
-    :param policy_document:
-    :param path_access_key_json:
-    :param github_user_name:
-    :param github_repo_name:
-    :param github_token:
-    :param github_secret_name_aws_default_region:
-    :param github_secret_name_aws_access_key_id:
-    :param github_secret_name_aws_secret_access_key:
+    :param boto_ses: Boto3 session instance for AWS API interactions, should be configured
+        with appropriate credentials and region for IAM operations
+    :param aws_region: AWS region identifier (e.g., 'us-east-1') where the IAM user will be created
+        and used for GitHub Actions
+    :param iam_user_name: Name for the IAM user that will be created for GitHub Actions automation.
+        Should follow AWS naming conventions and be descriptive of its purpose
+    :param tags: Dictionary of key-value pairs for tagging the IAM user, useful for resource
+        management, cost tracking, and identifying the automation source
+    :param policy_document: IAM policy document as a dictionary defining the minimal permissions
+        required for your GitHub Actions. Should follow principle of least privilege
+    :param attached_policy_arn_list: List of AWS managed policy ARNs to attach to the IAM user
+        in addition to the inline policy. Use empty list if only inline policy is needed
+    :param path_access_key_json: Path object pointing to a local JSON file where AWS access key
+        credentials will be stored for reuse across multiple runs
+    :param github_user_name: GitHub username or organization name that owns the repository
+    :param github_repo_name: Name of the GitHub repository where secrets will be configured
+    :param github_token: GitHub personal access token with 'repo' scope permissions to manage
+        repository secrets. Should have write access to the target repository
+    :param github_secret_name_aws_default_region: Name for the GitHub secret that will store
+        the AWS region value (default: "AWS_DEFAULT_REGION")
+    :param github_secret_name_aws_access_key_id: Name for the GitHub secret that will store
+        the AWS access key ID (default: "AWS_ACCESS_KEY_ID")  
+    :param github_secret_name_aws_secret_access_key: Name for the GitHub secret that will store
+        the AWS secret access key (default: "AWS_SECRET_ACCESS_KEY")
 
     Setup Workflow:
 
@@ -218,7 +235,7 @@ class SetupGitHubRepo:
             access_key = data["access_key"]
             secret_key = data["secret_key"]
             if verbose:
-                printer(f"  ✅Found existing access key {access_key!r}, using it.")
+                printer(f"  ✅Found existing access key {mask_value(access_key)!r}, using it.")
         else:
             response = self.iam_client.create_access_key(
                 UserName=self.iam_user_name
@@ -228,7 +245,7 @@ class SetupGitHubRepo:
             data = {"access_key": access_key, "secret_key": secret_key}
             self.path_access_key_json.write_text(json.dumps(data, indent=4))
             if verbose:
-                printer(f"  ✅Successfully created new access key {access_key!r}")
+                printer(f"  ✅Successfully created new access key {mask_value(access_key)!r}")
         return access_key, secret_key
 
     def s14_setup_github_secrets(self):
@@ -326,7 +343,7 @@ class SetupGitHubRepo:
                 UserName=self.iam_user_name,
                 AccessKeyId=access_key,
             )
-            printer(f"  ✅Successfully deleted access key {access_key!r}")
+            printer(f"  ✅Successfully deleted access key {mask_value(access_key)!r}")
         else:
             printer("  ✅Access key does not exist, nothing to delete.")
 
