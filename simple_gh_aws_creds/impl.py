@@ -41,7 +41,7 @@ from github import Github, Repository
 printer = print
 
 
-def mask_value(v: str) -> str:
+def mask_value(v: str) -> str:  # pragma: no cover
     if len(v) < 12:
         raise ValueError(f"{v} is too short")
     return f"{v[:4]}...{v[-4:]}"
@@ -396,7 +396,7 @@ class SetupGitHubRepo:
                         UserName=self.iam_user_name, PolicyArn=policy_arn
                     )
                     printer(f"  ✅Successfully detached managed policy {policy_arn}")
-                except botocore.exceptions.ClientError as e:
+                except botocore.exceptions.ClientError as e:  # pragma: no cover
                     printer(f"  ❌Failed to detach managed policy {policy_arn}: {e}")
 
         except botocore.exceptions.ClientError as e:

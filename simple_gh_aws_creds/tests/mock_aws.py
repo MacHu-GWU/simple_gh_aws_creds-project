@@ -50,6 +50,11 @@ class BaseMockAwsTest:
             aws_profile="bmt_app_dev_us_east_1",  # Use default profile
         )
         cls.setup_mock(mock_aws_test_config)
+        cls.setup_mock_post_process()
+
+    @classmethod
+    def setup_mock_post_process(cls):
+        pass
 
     @classmethod
     def teardown_class(cls):
