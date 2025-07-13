@@ -5,6 +5,7 @@ from simple_gh_aws_creds import api
 
 def test():
     _ = api
+    _ = api.SetupGitHubRepo
 
 
 if __name__ == "__main__":
