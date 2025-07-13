@@ -26,12 +26,6 @@ Security considerations:
 This approach trades some security for simplicity and automation, making it ideal
 for open source projects that need quick AWS integration without the overhead
 of OIDC setup and management.
-
-Requirements::
-
-    pip install "boto3>=1.38.0,<2.0.0"
-    pip install "boto_session_manager>=1.7.2,<2.0.0"
-    pip install "PyGithub>=2.1.1,<3.0.0"
 """
 
 import typing as T
@@ -45,6 +39,7 @@ import boto3
 from github import Github, Repository
 
 printer = print
+
 
 def mask_value(v: str) -> str:
     if len(v) < 12:
@@ -101,9 +96,17 @@ class SetupGitHubRepo:
     :param github_secret_name_aws_default_region: Name for the GitHub secret that will store
         the AWS region value (default: "AWS_DEFAULT_REGION")
     :param github_secret_name_aws_access_key_id: Name for the GitHub secret that will store
-        the AWS access key ID (default: "AWS_ACCESS_KEY_ID")  
+        the AWS access key ID (default: "AWS_ACCESS_KEY_ID")
     :param github_secret_name_aws_secret_access_key: Name for the GitHub secret that will store
         the AWS secret access key (default: "AWS_SECRET_ACCESS_KEY")
+
+    .. note::
+        This tool does not create IAM policies - it only attaches existing AWS managed policies
+        specified in ``attached_policy_arn_list``. Policy creation is out of scope for this
+        simple automation tool designed for rapid IAM user setup. If your use case requires
+        complex permissions beyond a single inline policy, consider using dedicated IAM
+        management tools instead. This library is optimized for simple, come-and-go scenarios
+        where one inline policy should be sufficient.
 
     Setup Workflow:
 
@@ -186,7 +189,7 @@ class SetupGitHubRepo:
 
     def s12_put_iam_policy(self):
         """
-        Attach minimal-privilege inline policy to the IAM user.
+        Attach minimal-privilege inline policy and AWS managed policies to the IAM user.
 
         This method implements the principle of least privilege by attaching only
         the specific permissions required for the intended use case. Inline policies
@@ -194,17 +197,32 @@ class SetupGitHubRepo:
         user and their permissions, making cleanup more reliable and preventing
         permission drift.
 
+        Additionally, this method attaches any AWS managed policies specified in
+        attached_policy_arn_list. It checks for existing attachments to avoid
+        duplicate policy attachments.
+
         The approach prevents the common security anti-pattern of using overly
         broad permissions for automation, reducing the blast radius if credentials
         are ever compromised.
         """
         printer(f"🆕Step 1.2: Put IAM Policy {self.policy_document_name!r}")
+
+        # Attach inline policy
         self.iam_client.put_user_policy(
             UserName=self.iam_user_name,
             PolicyName=self.policy_document_name,
             PolicyDocument=json.dumps(self.policy_document),
         )
-        printer("  ✅Successfully put IAM Policy.")
+        printer("  ✅Successfully put IAM inline policy.")
+
+        # Attach AWS managed policies if specified
+        if self.attached_policy_arn_list:
+            for policy_arn in self.attached_policy_arn_list:
+                self.iam_client.attach_user_policy(
+                    UserName=self.iam_user_name,
+                    PolicyArn=policy_arn,
+                )
+                printer(f"  ✅Successfully attached policy {policy_arn}")
 
     def s13_create_or_get_access_key(
         self,
@@ -235,17 +253,19 @@ class SetupGitHubRepo:
             access_key = data["access_key"]
             secret_key = data["secret_key"]
             if verbose:
-                printer(f"  ✅Found existing access key {mask_value(access_key)!r}, using it.")
+                printer(
+                    f"  ✅Found existing access key {mask_value(access_key)!r}, using it."
+                )
         else:
-            response = self.iam_client.create_access_key(
-                UserName=self.iam_user_name
-            )
+            response = self.iam_client.create_access_key(UserName=self.iam_user_name)
             access_key = response["AccessKey"]["AccessKeyId"]
             secret_key = response["AccessKey"]["SecretAccessKey"]
             data = {"access_key": access_key, "secret_key": secret_key}
             self.path_access_key_json.write_text(json.dumps(data, indent=4))
             if verbose:
-                printer(f"  ✅Successfully created new access key {mask_value(access_key)!r}")
+                printer(
+                    f"  ✅Successfully created new access key {mask_value(access_key)!r}"
+                )
         return access_key, secret_key
 
     def s14_setup_github_secrets(self):
@@ -349,27 +369,56 @@ class SetupGitHubRepo:
 
     def s23_delete_iam_policy(self):
         """
-        Remove IAM policy to clean up permissions and enable user deletion.
+        Remove IAM policies to clean up permissions and enable user deletion.
 
-        This method removes the inline policy attached to the IAM user, which is
-        a prerequisite for user deletion in AWS IAM. The cleanup of policies
-        prevents permission artifacts from remaining in the AWS account and
-        ensures that the IAM user can be completely removed.
+        This method removes both the inline policy and any attached AWS managed policies
+        from the IAM user, which is a prerequisite for user deletion in AWS IAM.
+        The cleanup of all policies prevents permission artifacts from remaining in
+        the AWS account and ensures that the IAM user can be completely removed.
 
         The systematic approach to policy cleanup is important for maintaining
         a clean AWS environment and avoiding the common issue of orphaned policies
         that can accumulate over time in active development environments.
         """
-        printer(f"🗑Step 2.3: Delete IAM Policy {self.policy_document_name!r}")
+        printer(f"🗑Step 2.3: Delete IAM Policies")
+
+        # First, detach all managed policies
+        try:
+            res = self.iam_client.list_attached_user_policies(
+                UserName=self.iam_user_name
+            )
+            attached_policies = res.get("AttachedPolicies", [])
+
+            for policy in attached_policies:
+                policy_arn = policy["PolicyArn"]
+                try:
+                    self.iam_client.detach_user_policy(
+                        UserName=self.iam_user_name, PolicyArn=policy_arn
+                    )
+                    printer(f"  ✅Successfully detached managed policy {policy_arn}")
+                except botocore.exceptions.ClientError as e:
+                    printer(f"  ❌Failed to detach managed policy {policy_arn}: {e}")
+
+        except botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchEntity":
+                printer("  ✅IAM User does not exist, no managed policies to detach.")
+            else:
+                printer(f"  ❌Failed to list attached policies: {e}")
+
+        # Then, delete the inline policy
         try:
             self.iam_client.delete_user_policy(
                 UserName=self.iam_user_name,
                 PolicyName=self.policy_document_name,
             )
-            printer("  ✅Successfully deleted IAM Policy.")
+            printer(
+                f"  ✅Successfully deleted inline policy {self.policy_document_name!r}."
+            )
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "NoSuchEntity":
-                printer("  ✅IAM Policy does not exist, nothing to delete.")
+                printer(
+                    f"  ✅Inline policy {self.policy_document_name!r} does not exist, nothing to delete."
+                )
             else:
                 raise e
 
