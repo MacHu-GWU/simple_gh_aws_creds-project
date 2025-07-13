@@ -154,11 +154,11 @@ class SetupGitHubRepo:
 
     # printer(f"Preview at {url}")
     @cached_property
-    def gh(self) -> Github:
+    def gh(self) -> Github:  # pragma: no cover
         return Github(self.github_token)
 
     @cached_property
-    def repo(self) -> Repository:
+    def repo(self) -> Repository:  # pragma: no cover
         return self.gh.get_repo(f"{self.github_user_name}/{self.github_repo_name}")
 
     def s11_create_iam_user(self):
@@ -184,7 +184,7 @@ class SetupGitHubRepo:
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "EntityAlreadyExists":
                 printer("  ✅IAM User already exists, do nothing.")
-            else:
+            else:  # pragma: no cover
                 raise e
 
     def s12_put_iam_policy(self):
@@ -268,7 +268,7 @@ class SetupGitHubRepo:
                 )
         return access_key, secret_key
 
-    def s14_setup_github_secrets(self):
+    def s14_setup_github_secrets(self):  # pragma: no cover
         """
         Configure GitHub repository secrets for seamless CI/CD integration.
 
@@ -305,7 +305,7 @@ class SetupGitHubRepo:
                 printer(f"  ❌Failed to create GitHub Secret {secret_name!r}: {e}")
                 return
 
-    def s21_delete_github_secrets(self):
+    def s21_delete_github_secrets(self):  # pragma: no cover
         """
         Remove GitHub secrets to prevent credential accumulation.
 
@@ -350,11 +350,11 @@ class SetupGitHubRepo:
         printer(f"🗑Step 2.2: Delete access key")
         try:
             res = self.iam_client.list_access_keys(UserName=self.iam_user_name)
-        except botocore.exceptions.ClientError as e:
+        except botocore.exceptions.ClientError as e:  # pragma: no cover
             if e.response["Error"]["Code"] == "NoSuchEntity":
                 printer("  ✅IAM User does not exist, nothing to delete.")
                 return
-            else:
+            else:  # pragma: no cover
                 raise e
         access_key_list = res.get("AccessKeyMetadata", [])
         if len(access_key_list):
@@ -402,7 +402,7 @@ class SetupGitHubRepo:
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "NoSuchEntity":
                 printer("  ✅IAM User does not exist, no managed policies to detach.")
-            else:
+            else:  # pragma: no cover
                 printer(f"  ❌Failed to list attached policies: {e}")
 
         # Then, delete the inline policy
@@ -419,7 +419,7 @@ class SetupGitHubRepo:
                 printer(
                     f"  ✅Inline policy {self.policy_document_name!r} does not exist, nothing to delete."
                 )
-            else:
+            else:  # pragma: no cover
                 raise e
 
     def s24_delete_iam_user(self):
@@ -443,5 +443,5 @@ class SetupGitHubRepo:
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "NoSuchEntity":
                 printer("  ✅IAM User does not exist, nothing to delete.")
-            else:
+            else:  # pragma: no cover
                 raise e
