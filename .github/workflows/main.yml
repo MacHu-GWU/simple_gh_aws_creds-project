@@ -8,10 +8,10 @@ name: CI
 # Define the events that will trigger this workflow to run
 # ref: https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#on
 on:
-  push: # Workflow will run on any push event to the main branch
-    branches: ["main"]
-  pull_request: # Workflow will run on any pull request targeting the main branch
-    branches: ["main"]
+#  push: # Workflow will run on any push event to the main branch
+#    branches: ["main"]
+#  pull_request: # Workflow will run on any pull request targeting the main branch
+#    branches: ["main"]
   workflow_dispatch: # Allows you to manually trigger the workflow from the GitHub UI
 
 # ------------------------------------------------------------------------------
@@ -39,12 +39,12 @@ jobs:
       # This will create a separate job for each combination of OS and Python version
       matrix:
         # Define the operating systems to test on
-        os: ["ubuntu-latest", "windows-latest"]
-#        os: ["ubuntu-latest", ] # Commented out configurations for quick debugging
+#        os: ["ubuntu-latest", "windows-latest"]
+        os: ["ubuntu-latest", ] # Commented out configurations for quick debugging
 #        os: ["windows-latest", ] # Commented out configurations for quick debugging
         # Define the Python versions to test with
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
-#        python-version: ["3.11", ] # Commented out configurations for quick debugging
+#        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.11", ] # Commented out configurations for quick debugging
         # Exclude specific combinations from the matrix
         exclude:
           - os: windows-latest # this one has no effect, it is for demonstration use only
