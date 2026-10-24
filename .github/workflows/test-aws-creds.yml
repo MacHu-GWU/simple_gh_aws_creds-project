@@ -1,0 +1,31 @@
+# Checks that the AWS credentials created by this library work in GitHub Actions.
+# The IAM user and the secrets come from:
+#   simple-gh-aws-creds setup --config .github/simple_gh_aws_creds.json --aws_profile <profile>
+name: test-aws-creds
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/test-aws-creds.yml"
+      - ".github/simple_gh_aws_creds.json"
+
+permissions:
+  contents: read
+
+jobs:
+  test-aws-creds:
+    runs-on: ubuntu-latest
+    # Secrets are not passed to workflows triggered by pull requests from forks
+    env:
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      # needs no permission: works for any valid key
+      - name: "Get caller identity"
+        run: aws sts get-caller-identity
+      # the only permission of the IAM user: read itself
+      - name: "Get own IAM user"
+        run: aws iam get-user --query "User.UserName" --output text

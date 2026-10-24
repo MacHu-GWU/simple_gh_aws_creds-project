@@ -1,0 +1,27 @@
+{
+    "aws_region": "us-east-1",
+    "iam_user_name": "pypi-simple_gh_aws_creds",
+    "tags": {
+        "tech:use_case": "GitHub Actions test of the simple_gh_aws_creds library",
+        "github_user_name": "MacHu-GWU",
+        "github_repo_name": "simple_gh_aws_creds-project",
+        "automation_script": "https://github.com/MacHu-GWU/simple_gh_aws_creds-project/blob/main/.github/simple_gh_aws_creds.json"
+    },
+    "policy_document": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "GetOwnUserOnly",
+                "Effect": "Allow",
+                "Action": [
+                    "iam:GetUser"
+                ],
+                "Resource": "arn:aws:iam::*:user/${aws:username}"
+            }
+        ]
+    },
+    "attached_policy_arn_list": [],
+    "path_access_key_json": "../pypi_access_key.json",
+    "github_user_name": "MacHu-GWU",
+    "github_repo_name": "simple_gh_aws_creds-project"
+}
