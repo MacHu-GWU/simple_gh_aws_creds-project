@@ -8,6 +8,8 @@ Every command returns ``None``, so python-fire never prints a return value
 :mod:`.impl`.
 """
 
+from __future__ import annotations
+
 import sys
 
 import fire
@@ -33,7 +35,7 @@ class Command:
         aws_profile: str | None = None,
         github_token_env_name: str = "GITHUB_TOKEN",
         **overrides,
-    ):
+    ) -> None:
         """
         Create the IAM user, its policies and access key, and the GitHub secrets.
         Safe to run again: it also repairs a partial setup.
@@ -52,7 +54,7 @@ class Command:
         aws_profile: str | None = None,
         github_token_env_name: str = "GITHUB_TOKEN",
         **overrides,
-    ):
+    ) -> None:
         """
         Delete the GitHub secrets, the access keys, the policies, and the IAM
         user. Requires --yes.
@@ -78,7 +80,7 @@ class Command:
         config: str,
         aws_profile: str | None = None,
         **overrides,
-    ):
+    ) -> None:
         """
         Make the IAM user's policies match the config file. The IAM user, the
         access key, and the GitHub secrets stay as they are. No GitHub token needed.
@@ -97,7 +99,7 @@ class Command:
         aws_profile: str | None = None,
         github_token_env_name: str = "GITHUB_TOKEN",
         **overrides,
-    ):
+    ) -> None:
         """
         Replace the IAM user's access key with a new one and update the GitHub
         secrets. Requires --yes.
@@ -119,6 +121,9 @@ class Command:
         ).s31_rotate_access_key()
 
 
-def main():
+def main() -> None:
+    """
+    Entry point of the ``simple-gh-aws-creds`` command.
+    """
     # an instance, so that --help lists the commands
     fire.Fire(Command())

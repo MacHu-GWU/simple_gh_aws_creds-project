@@ -10,6 +10,8 @@ boto3 credential chain (optionally a named profile), and the GitHub token comes
 from an environment variable whose *name* is passed in.
 """
 
+from __future__ import annotations
+
 import os
 import json
 from pathlib import Path
@@ -53,6 +55,8 @@ def read_env_var(env_name: str) -> str:
     Return the value of the environment variable ``env_name``.
 
     The error message names the variable and never shows a value.
+
+    :raises ValueError: the variable is not set or is empty.
     """
     value = os.environ.get(env_name, "")
     if not value:
@@ -66,6 +70,8 @@ def load_config(path: str | Path) -> dict:
 
     A relative ``path_access_key_json`` is resolved against the folder of the
     config file, not the current directory.
+
+    :raises ValueError: the file is not a JSON object, or has unknown keys.
     """
     path = Path(path).expanduser().absolute()
     config = json.loads(path.read_text())
@@ -96,6 +102,7 @@ def build_setup(
     Build a :class:`~simple_gh_aws_creds.impl.SetupGitHubRepo` from the config
     file at ``config_path``.
 
+    :param config_path: path to the JSON config file, read by :func:`load_config`.
     :param aws_profile: AWS profile name; ``None`` uses the default boto3
         credential chain (environment variables, SSO, instance role, ...).
     :param github_token_env_name: name of the environment variable that holds
@@ -105,6 +112,9 @@ def build_setup(
     :param overrides: values that replace the config file's, only for the keys
         in :data:`OVERRIDABLE_FIELDS`. A relative ``path_access_key_json`` here
         is resolved against the current directory.
+    :returns: the configured :class:`~simple_gh_aws_creds.impl.SetupGitHubRepo`.
+    :raises ValueError: the config file has unknown keys or misses a required
+        key, an override is not allowed, or the GitHub token variable is not set.
     """
     config = load_config(config_path)
     unknown = sorted(set(overrides) - set(OVERRIDABLE_FIELDS))
