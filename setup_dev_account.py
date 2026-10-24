@@ -14,7 +14,7 @@ Prerequisites
 3. Python dependencies installed:
    - simple-gh-aws-creds
    - boto-session-manager  
-   - home-secret (for secure token management)
+   - home-secret-toml (for secure token management)
 
 What this script does
 ------------------------------------------------------------------------------
@@ -40,8 +40,8 @@ Usage
 """
 
 from pathlib import Path
-from boto_session_manager import BotoSesManager
-from home_secret.api import hs
+from boto_session_manager.api import BotoSesManager
+from home_secret_toml.api import hs
 from simple_gh_aws_creds.api import SetupGitHubRepo
 
 # =============================================================================
@@ -128,12 +128,12 @@ setup = SetupGitHubRepo(
     github_repo_name=github_repo_name,
     
     # GitHub Personal Access Token
-    # This example uses home_secret library for secure token storage
+    # This example uses home_secret_toml library to read the token from ``~/home_secret.toml``
     # Alternative methods:
     # - Environment variable: os.environ["GITHUB_TOKEN"]
     # - Direct string: "ghp_your_token_here" (NOT recommended for production)
     # - External secret manager integration
-    github_token=hs.v("providers.github.accounts.sh.users.sh.secrets.dev.value"),
+    github_token=hs.v("github.accounts.sh.users.sh.secrets.dev.value"),
     
     # GitHub Secrets Configuration
     # These are the names that will be used for the GitHub repository secrets

@@ -110,14 +110,11 @@ css = [
 
 [[package]]
 name = "boto-session-manager"
-version = "1.8.1"
+version = "2.1.1"
 source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "boto3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/67/7d/be013c8b6b8edf2afbc063bc393feac64d107f598f3284d99278a4ffb6ff/boto_session_manager-1.8.1.tar.gz", hash = "sha256:68f8cd1f60ab7e245875caacbc58416830f0c6dc5562ed9cbea6a55db100382f", size = 40374, upload-time = "2025-03-14T19:32:52.79Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/48/ef51105b570f4f910507c5d6cadd14af38f2948aab395e3444f36c509172/boto_session_manager-2.1.1.tar.gz", hash = "sha256:cd7c39f59d7a62d143900ccbb21cba4d02ebce52f38aef2c5f39fbc2e613b163", size = 50489, upload-time = "2026-10-18T19:53:29.218Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/66/fc/b3e3318a8fe99b3b7631ae54faee3294b8e3dcc74daa037010aff305d986/boto_session_manager-1.8.1-py3-none-any.whl", hash = "sha256:ca73b7356cc6af626a9794bc36a44d998312cb4686f5c408d45603cce3e47323", size = 33736, upload-time = "2025-03-14T19:32:51.767Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/19/329888ce791a6b358019d3175d51eff81502d04bbc622ebb1b99177f9469/boto_session_manager-2.1.1-py3-none-any.whl", hash = "sha256:addd26d6230cd97a0f81a609956fc83f66062230b8a0483538d448489870c69f", size = 40581, upload-time = "2026-10-18T19:53:30.41Z" },
 ]
 
 [[package]]
@@ -729,12 +726,12 @@ wheels = [
 ]
 
 [[package]]
-name = "home-secret"
-version = "0.1.3"
+name = "home-secret-toml"
+version = "0.2.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6f/70/9511cbb68b12c229599687e2ef2f7a50a5cf14e7c7fdcb48217908966230/home_secret-0.1.3.tar.gz", hash = "sha256:8ea8d45d5000f72256ac7aed9ba5ade1bc149acef0431c62ef151f8776a9e09f", size = 12972, upload-time = "2025-08-12T17:01:15.254Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/67/4d/f2358cd295d1fad441e25513969d21a485870bba4cf835e1f4ca603c82be/home_secret_toml-0.2.1.tar.gz", hash = "sha256:1b009aa671b4e65223468952e9e747b88d489f47fcd6c4250afc1386634ee896", size = 16751, upload-time = "2025-12-13T00:52:53.094Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2c/7d/420d2ec85dc85e4e7cffe002d5277653cb4b742533ccaab23ecc79f3e0c8/home_secret-0.1.3-py3-none-any.whl", hash = "sha256:d02be20d5c6b28bc330021bb58080e6bca23f1201635e845f5b7f6f343d7921e", size = 13640, upload-time = "2025-08-12T17:01:14.401Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/5d/d0e7b4e31d898dabec6576a863515757719e68e651c8042eec4282d3fa7f/home_secret_toml-0.2.1-py3-none-any.whl", hash = "sha256:965bd67d47f06ace649b3c4ad62711dba7d596470327c725be572b516a995760", size = 16755, upload-time = "2025-12-13T00:52:52.167Z" },
 ]
 
 [[package]]
@@ -1822,7 +1819,7 @@ mise = [
 ]
 test = [
     { name = "boto-session-manager" },
-    { name = "home-secret" },
+    { name = "home-secret-toml" },
     { name = "moto" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -1830,11 +1827,11 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "boto-session-manager", marker = "extra == 'test'", specifier = ">=1.0.0,<2.0.0" },
+    { name = "boto-session-manager", marker = "extra == 'test'", specifier = ">=2.1.1,<3.0.0" },
     { name = "boto3", specifier = ">=1.35.0,<2.0.0" },
     { name = "docfly", marker = "extra == 'doc'", specifier = ">=3.0.3,<4.0.0" },
     { name = "furo", marker = "extra == 'doc'", specifier = "==2025.12.19" },
-    { name = "home-secret", marker = "extra == 'test'", specifier = ">=0.1.1,<1.0.0" },
+    { name = "home-secret-toml", marker = "extra == 'test'", specifier = ">=0.2.1,<1.0.0" },
     { name = "httpx2", marker = "extra == 'mise'", specifier = ">=2.13.1,<3.0.0" },
     { name = "ipykernel", marker = "extra == 'doc'", specifier = ">=7.3.0,<8.0.0" },
     { name = "ipython", marker = "extra == 'doc'", specifier = ">=8.18.1,<8.19.0" },

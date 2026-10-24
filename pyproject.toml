@@ -55,8 +55,8 @@ test = [
     "pytest>=9.1.1,<10.0.0",
     "pytest-cov>=7.1.0,<8.0.0",
     "moto>=5.0.0,<6.0.0", # mock AWS services, so unit tests never touch a real account
-    "boto_session_manager>=1.0.0,<2.0.0", # AWS session manager
-    "home_secret>=0.1.1,<1.0.0", # read secrets in setup_dev_account.py
+    "boto_session_manager>=2.1.1,<3.0.0", # AWS session manager
+    "home-secret-toml>=0.2.1,<1.0.0", # read secrets in setup_dev_account.py
 ]
 
 # docs build

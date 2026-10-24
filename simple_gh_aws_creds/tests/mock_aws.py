@@ -4,7 +4,7 @@ import dataclasses
 
 import moto
 import boto3
-from boto_session_manager import BotoSesManager
+from boto_session_manager.api import BotoSesManager
 
 
 @dataclasses.dataclass(frozen=True)
