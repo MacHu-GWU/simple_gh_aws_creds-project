@@ -109,9 +109,7 @@ class TestSetupGitHubRepo(BaseMockAwsTest):
             ]
             if self.test_managed_policy_arn
             else [],
-            path_access_key_json=(
-                path_enum.dir_project_root.joinpath("dev_access_key.json")
-            ),
+            path_access_key_json=(path_enum.dir_tmp.joinpath("test_access_key.json")),
             github_user_name=github_user_name,
             github_repo_name=github_repo_name,
             github_token="github_token_here",
