@@ -3,6 +3,8 @@
     "permissions": {
         "defaultMode": "auto",
         "deny": [
+            "Read(**/*access_key.json)",
+            "Edit(**/*access_key.json)"
         ],
         "allow": [
             "Read(========== Read Section ==========)",
