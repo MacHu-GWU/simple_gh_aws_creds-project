@@ -12,7 +12,7 @@ and testing scenarios.
 The primary motivation for this approach is to provide:
 
 - Automated IAM user creation with minimal required permissions
-- Seamless integration with GitHub Secrets for CI/CD workflows  
+- Seamless integration with GitHub Secrets for CI/CD workflows
 - Quick setup for open source projects without complex OIDC configuration
 - Proper cleanup capabilities to avoid resource accumulation
 
@@ -30,13 +30,15 @@ of OIDC setup and management.
 
 import typing as T
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 from functools import cached_property
 
 import botocore.exceptions
 import boto3
-from github import Github, Repository
+from github import Github
+from github import Repository
 
 printer = print
 

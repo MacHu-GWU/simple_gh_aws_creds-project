@@ -5,7 +5,6 @@ omit =
     simple_gh_aws_creds/docs/*
     simple_gh_aws_creds/tests/*
     simple_gh_aws_creds/vendor/*
-    simple_gh_aws_creds/_version.py
     simple_gh_aws_creds/cli.py
     simple_gh_aws_creds/paths.py
 

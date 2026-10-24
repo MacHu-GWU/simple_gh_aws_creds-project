@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
-import json
 from simple_gh_aws_creds.impl import SetupGitHubRepo
 
+import json
+
 from simple_gh_aws_creds.tests.mock_aws import BaseMockAwsTest
-from simple_gh_aws_creds.paths import dir_project_root
+from simple_gh_aws_creds.paths import path_enum
 
 
 class TestSetupGitHubRepo(BaseMockAwsTest):
@@ -14,26 +15,22 @@ class TestSetupGitHubRepo(BaseMockAwsTest):
         Create test managed policies in moto since AWS managed policies don't exist in mock environment
         """
         iam_client = cls.bsm.iam_client
-        
+
         # Create a test managed policy that simulates IAMReadOnlyAccess
         cls.test_managed_policy_name = "TestIAMReadOnlyAccess"
         cls.test_managed_policy_arn = None
-        
+
         test_policy_document = {
             "Version": "2012-10-17",
             "Statement": [
                 {
                     "Effect": "Allow",
-                    "Action": [
-                        "iam:Get*",
-                        "iam:List*",
-                        "iam:Generate*"
-                    ],
-                    "Resource": "*"
+                    "Action": ["iam:Get*", "iam:List*", "iam:Generate*"],
+                    "Resource": "*",
                 }
-            ]
+            ],
         }
-        
+
         try:
             response = iam_client.create_policy(
                 PolicyName=cls.test_managed_policy_name,
@@ -51,14 +48,14 @@ class TestSetupGitHubRepo(BaseMockAwsTest):
         """
         Clean up test managed policies before tearing down mock AWS
         """
-        if hasattr(cls, 'test_managed_policy_arn') and cls.test_managed_policy_arn:
+        if hasattr(cls, "test_managed_policy_arn") and cls.test_managed_policy_arn:
             try:
                 iam_client = cls.bsm.iam_client
                 iam_client.delete_policy(PolicyArn=cls.test_managed_policy_arn)
                 print(f"Cleaned up test managed policy: {cls.test_managed_policy_arn}")
             except Exception as e:
                 print(f"Failed to cleanup test managed policy: {e}")
-        
+
         # Call parent teardown
         super().teardown_class()
 
@@ -91,8 +88,12 @@ class TestSetupGitHubRepo(BaseMockAwsTest):
             },
             attached_policy_arn_list=[
                 self.test_managed_policy_arn,  # Use the test managed policy we created
-            ] if self.test_managed_policy_arn else [],
-            path_access_key_json=(dir_project_root.joinpath("dev_access_key.json")),
+            ]
+            if self.test_managed_policy_arn
+            else [],
+            path_access_key_json=(
+                path_enum.dir_project_root.joinpath("dev_access_key.json")
+            ),
             github_user_name=github_user_name,
             github_repo_name=github_repo_name,
             github_token="github_token_here",
@@ -112,32 +113,49 @@ class TestSetupGitHubRepo(BaseMockAwsTest):
 
         setup.s11_create_iam_user()
         setup.s12_put_iam_policy()
-        
+
         # Verify that managed policy is attached if we created one
         if self.test_managed_policy_arn:
-            attached_policies = setup.iam_client.list_attached_user_policies(UserName=setup.iam_user_name)
-            attached_arns = [policy["PolicyArn"] for policy in attached_policies["AttachedPolicies"]]
-            assert self.test_managed_policy_arn in attached_arns, f"Expected managed policy {self.test_managed_policy_arn} to be attached"
-            print(f"✅ Verified managed policy {self.test_managed_policy_arn} is attached")
-        
+            attached_policies = setup.iam_client.list_attached_user_policies(
+                UserName=setup.iam_user_name
+            )
+            attached_arns = [
+                policy["PolicyArn"] for policy in attached_policies["AttachedPolicies"]
+            ]
+            assert self.test_managed_policy_arn in attached_arns, (
+                f"Expected managed policy {self.test_managed_policy_arn} to be attached"
+            )
+            print(
+                f"✅ Verified managed policy {self.test_managed_policy_arn} is attached"
+            )
+
         setup.s13_create_or_get_access_key()
 
         # Test cleanup
         setup.s22_delete_access_key()
         setup.s22_delete_access_key()
         setup.s23_delete_iam_policy()
-        
+
         # Verify that managed policy is detached after s23_delete_iam_policy
         if self.test_managed_policy_arn:
             try:
-                attached_policies = setup.iam_client.list_attached_user_policies(UserName=setup.iam_user_name)
-                attached_arns = [policy["PolicyArn"] for policy in attached_policies["AttachedPolicies"]]
-                assert self.test_managed_policy_arn not in attached_arns, f"Expected managed policy {self.test_managed_policy_arn} to be detached"
-                print(f"✅ Verified managed policy {self.test_managed_policy_arn} is detached")
+                attached_policies = setup.iam_client.list_attached_user_policies(
+                    UserName=setup.iam_user_name
+                )
+                attached_arns = [
+                    policy["PolicyArn"]
+                    for policy in attached_policies["AttachedPolicies"]
+                ]
+                assert self.test_managed_policy_arn not in attached_arns, (
+                    f"Expected managed policy {self.test_managed_policy_arn} to be detached"
+                )
+                print(
+                    f"✅ Verified managed policy {self.test_managed_policy_arn} is detached"
+                )
             except Exception as e:
                 # If user doesn't exist, that's also fine
                 print(f"User may not exist anymore: {e}")
-        
+
         setup.s23_delete_iam_policy()
         setup.s24_delete_iam_user()
         setup.s24_delete_iam_user()

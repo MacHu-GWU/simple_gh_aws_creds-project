@@ -1,15 +1,10 @@
 # -*- coding: utf-8 -*-
 
-import typing as T
 import dataclasses
 
 import moto
 import boto3
-import botocore.exceptions
 from boto_session_manager import BotoSesManager
-
-if T.TYPE_CHECKING:  # pragma: no cover
-    from mypy_boto3_s3.client import S3Client
 
 
 @dataclasses.dataclass(frozen=True)
@@ -17,7 +12,7 @@ class MockAwsTestConfig:
     use_mock: bool = dataclasses.field()
     aws_region: str = dataclasses.field()
     prefix: str = dataclasses.field()
-    aws_profile: T.Optional[str] = dataclasses.field(default=None)
+    aws_profile: str | None = dataclasses.field(default=None)
 
 
 class BaseMockAwsTest:
