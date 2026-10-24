@@ -475,58 +475,48 @@ class SetupGitHubRepo:
 
     def s23_delete_iam_policy(self):
         """
-        Remove IAM policies to clean up permissions and enable user deletion.
+        Remove every policy from the IAM user, so that :meth:`s24_delete_iam_user`
+        can delete it.
 
-        This method removes both the inline policy and any attached AWS managed policies
-        from the IAM user, which is a prerequisite for user deletion in AWS IAM.
-        The cleanup of all policies prevents permission artifacts from remaining in
-        the AWS account and ensures that the IAM user can be completely removed.
-
-        The systematic approach to policy cleanup is important for maintaining
-        a clean AWS environment and avoiding the common issue of orphaned policies
-        that can accumulate over time in active development environments.
+        - Every managed policy attached to the user is detached.
+        - Every inline policy on the user is deleted, not only
+          :attr:`policy_document_name`: an inline policy left over from an earlier
+          ``aws_region`` or added by hand would otherwise block the user deletion.
         """
         printer(f"🗑Step 2.3: Delete IAM Policies")
 
-        # First, detach all managed policies
+        # List first, then delete, so the pagination is not affected by the deletes
         try:
-            res = self.iam_client.list_attached_user_policies(
-                UserName=self.iam_user_name
-            )
-            attached_policies = res.get("AttachedPolicies", [])
-
-            for policy in attached_policies:
-                policy_arn = policy["PolicyArn"]
-                try:
-                    self.iam_client.detach_user_policy(
-                        UserName=self.iam_user_name, PolicyArn=policy_arn
-                    )
-                    printer(f"  ✅Successfully detached managed policy {policy_arn}")
-                except botocore.exceptions.ClientError as e:  # pragma: no cover
-                    printer(f"  ❌Failed to detach managed policy {policy_arn}: {e}")
-
+            attached_arns = list()
+            paginator = self.iam_client.get_paginator("list_attached_user_policies")
+            for page in paginator.paginate(UserName=self.iam_user_name):
+                for policy in page.get("AttachedPolicies", []):
+                    attached_arns.append(policy["PolicyArn"])
+            inline_names = list()
+            paginator = self.iam_client.get_paginator("list_user_policies")
+            for page in paginator.paginate(UserName=self.iam_user_name):
+                inline_names.extend(page.get("PolicyNames", []))
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "NoSuchEntity":
-                printer("  ✅IAM User does not exist, no managed policies to detach.")
-            else:  # pragma: no cover
-                printer(f"  ❌Failed to list attached policies: {e}")
-
-        # Then, delete the inline policy
-        try:
-            self.iam_client.delete_user_policy(
-                UserName=self.iam_user_name,
-                PolicyName=self.policy_document_name,
-            )
-            printer(
-                f"  ✅Successfully deleted inline policy {self.policy_document_name!r}."
-            )
-        except botocore.exceptions.ClientError as e:
-            if e.response["Error"]["Code"] == "NoSuchEntity":
-                printer(
-                    f"  ✅Inline policy {self.policy_document_name!r} does not exist, nothing to delete."
-                )
+                printer("  ✅IAM User does not exist, no policies to delete.")
+                return
             else:  # pragma: no cover
                 raise e
+
+        for policy_arn in attached_arns:
+            self.iam_client.detach_user_policy(
+                UserName=self.iam_user_name,
+                PolicyArn=policy_arn,
+            )
+            printer(f"  ✅Successfully detached managed policy {policy_arn}")
+        for policy_name in inline_names:
+            self.iam_client.delete_user_policy(
+                UserName=self.iam_user_name,
+                PolicyName=policy_name,
+            )
+            printer(f"  ✅Successfully deleted inline policy {policy_name!r}.")
+        if not (attached_arns or inline_names):
+            printer("  ✅IAM User has no policies, nothing to delete.")
 
     def s24_delete_iam_user(self):
         """

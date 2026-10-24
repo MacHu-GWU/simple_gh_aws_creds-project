@@ -261,7 +261,22 @@ class TestSetupGitHubRepo(BaseMockAwsTest):
         res = setup.iam_client.list_access_keys(UserName=setup.iam_user_name)
         assert res["AccessKeyMetadata"] == []
 
+        # an inline policy left over from an earlier aws_region must not block
+        # the user deletion
+        iam.put_user_policy(
+            UserName=setup.iam_user_name,
+            PolicyName=f"iam-user-us-west-2-{setup.iam_user_name}-inline-policy",
+            PolicyDocument=json.dumps(setup.policy_document),
+        )
         setup.s23_delete_iam_policy()
+        assert iam.list_user_policies(UserName=setup.iam_user_name)["PolicyNames"] == []
+        assert (
+            iam.list_attached_user_policies(UserName=setup.iam_user_name)[
+                "AttachedPolicies"
+            ]
+            == []
+        )
+        setup.s23_delete_iam_policy()  # no policies left
         setup.s24_delete_iam_user()
         path_access_key_json.unlink(missing_ok=True)
 
