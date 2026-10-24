@@ -6,6 +6,7 @@ certifi==2026.10.23
 cffi==2.1.1 ; platform_python_implementation != 'PyPy'
 charset-normalizer==3.5.2
 cryptography==50.0.2
+fire==0.7.1
 idna==3.20
 jmespath==1.1.0
 pycparser==3.12 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
@@ -16,5 +17,6 @@ python-dateutil==2.9.0.post0
 requests==2.34.2
 s3transfer==0.19.3
 six==1.17.0
+termcolor==3.3.0
 typing-extensions==4.16.0
 urllib3==2.8.0

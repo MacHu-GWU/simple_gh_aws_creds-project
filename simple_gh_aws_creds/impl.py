@@ -124,6 +124,13 @@ class SetupGitHubRepo:
     - :meth:`s22_delete_access_key`
     - :meth:`s23_delete_iam_policy`
     - :meth:`s24_delete_iam_user`
+
+    Maintenance:
+
+    - :meth:`s12_put_iam_policy`: hot-update the permissions
+    - :meth:`s31_rotate_access_key`: replace the access key
+
+    :meth:`setup_all` and :meth:`teardown_all` run each workflow in order.
     """
 
     # fmt: off
@@ -306,8 +313,9 @@ class SetupGitHubRepo:
                     f"IAM User {self.iam_user_name!r} already has access key {masked}, "
                     f"but its secret key is not in {str(self.path_access_key_json)!r}. "
                     f"AWS shows a secret key only when it is created, so it cannot be "
-                    f"recovered. Run s22_delete_access_key() to delete the old key, "
-                    f"then run s13_create_or_get_access_key() again to create a new one."
+                    f"recovered. Replace it with a new key: run "
+                    f"'simple-gh-aws-creds rotate_key --config <config_path> --yes', "
+                    f"or call s31_rotate_access_key() in Python."
                 )
             access_key = data["access_key"]
             secret_key = data["secret_key"]
@@ -547,3 +555,58 @@ class SetupGitHubRepo:
                 raise e
             else:  # pragma: no cover
                 raise e
+
+    def s31_rotate_access_key(self):
+        """
+        Replace the IAM user's access key with a new one, keeping the IAM user.
+
+        Each IAM user holds exactly one access key managed by this library, so
+        this method:
+
+        1. deletes every access key of the user (:meth:`s22_delete_access_key`),
+        2. creates a new key and writes it to ``path_access_key_json`` right away
+           (:meth:`s13_create_or_get_access_key`),
+        3. writes the new key to the GitHub secrets (:meth:`s14_setup_github_secrets`).
+
+        The new key is saved locally before GitHub is touched: if step 3 fails,
+        :meth:`setup_all` finishes the job with the saved key. The old key stops
+        working at step 1, so workflows running during the few seconds before
+        step 3 fail.
+        """
+        printer(f"🔄Step 3.1: Rotate access key of IAM User {self.iam_user_name!r}")
+        try:
+            self.iam_client.get_user(UserName=self.iam_user_name)
+        except botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchEntity":
+                raise RuntimeError(
+                    f"IAM User {self.iam_user_name!r} does not exist, "
+                    f"run setup first (setup_all() in Python)."
+                ) from e
+            else:  # pragma: no cover
+                raise e
+        self.s22_delete_access_key()
+        self.s13_create_or_get_access_key()
+        self.s14_setup_github_secrets()
+
+    def setup_all(self):
+        """
+        Run the setup workflow: :meth:`s11_create_iam_user`,
+        :meth:`s12_put_iam_policy`, :meth:`s13_create_or_get_access_key`, and
+        :meth:`s14_setup_github_secrets`. Every step is idempotent, so running it
+        again also repairs a partial setup.
+        """
+        self.s11_create_iam_user()
+        self.s12_put_iam_policy()
+        self.s13_create_or_get_access_key()
+        self.s14_setup_github_secrets()
+
+    def teardown_all(self):
+        """
+        Run the teardown workflow: :meth:`s21_delete_github_secrets`,
+        :meth:`s22_delete_access_key`, :meth:`s23_delete_iam_policy`, and
+        :meth:`s24_delete_iam_user`.
+        """
+        self.s21_delete_github_secrets()
+        self.s22_delete_access_key()
+        self.s23_delete_iam_policy()
+        self.s24_delete_iam_user()

@@ -11,6 +11,21 @@ from simple_gh_aws_creds.tests.mock_aws import BaseMockAwsTest
 from simple_gh_aws_creds.paths import path_enum
 
 
+class FakeRepo:
+    """
+    Stands in for the PyGithub repository, so no test calls GitHub.
+    """
+
+    def __init__(self):
+        self.secrets = dict()
+
+    def create_secret(self, secret_name, unencrypted_value, secret_type):
+        self.secrets[secret_name] = unencrypted_value
+
+    def delete_secret(self, secret_name):
+        return self.secrets.pop(secret_name, None) is not None
+
+
 class TestSetupGitHubRepo(BaseMockAwsTest):
     @classmethod
     def setup_mock_post_process(cls):
@@ -278,6 +293,75 @@ class TestSetupGitHubRepo(BaseMockAwsTest):
         )
         setup.s23_delete_iam_policy()  # no policies left
         setup.s24_delete_iam_user()
+        path_access_key_json.unlink(missing_ok=True)
+
+    def test_workflows(self):
+        path_access_key_json = path_enum.dir_tmp.joinpath(
+            "test_workflows_access_key.json"
+        )
+        path_access_key_json.parent.mkdir(parents=True, exist_ok=True)
+        path_access_key_json.unlink(missing_ok=True)
+        setup = SetupGitHubRepo(
+            boto_ses=self.bsm.boto_ses,
+            aws_region="us-east-1",
+            iam_user_name="gh-ci-workflows",
+            tags={},
+            policy_document={
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": ["iam:ListAccountAliases"],
+                        "Resource": "*",
+                    },
+                ],
+            },
+            attached_policy_arn_list=[],
+            path_access_key_json=path_access_key_json,
+            github_user_name="MacHu-GWU",
+            github_repo_name="simple_gh_aws_creds-project",
+            github_token="github_token_here",
+        )
+        repo = FakeRepo()
+        setup.__dict__["repo"] = repo  # replace the cached_property
+        iam = setup.iam_client
+
+        # rotate needs an existing IAM user
+        with pytest.raises(RuntimeError):
+            setup.s31_rotate_access_key()
+
+        setup.setup_all()
+        setup.setup_all()  # idempotent
+        old_key, old_secret = setup.s13_create_or_get_access_key(verbose=False)
+        assert repo.secrets == {
+            "AWS_DEFAULT_REGION": "us-east-1",
+            "AWS_ACCESS_KEY_ID": old_key,
+            "AWS_SECRET_ACCESS_KEY": old_secret,
+        }
+
+        # rotate: one new key, saved locally and written to GitHub
+        setup.s31_rotate_access_key()
+        keys = iam.list_access_keys(UserName=setup.iam_user_name)["AccessKeyMetadata"]
+        assert len(keys) == 1
+        new_key = keys[0]["AccessKeyId"]
+        assert new_key != old_key
+        data = json.loads(path_access_key_json.read_text())
+        assert data["access_key"] == new_key
+        assert repo.secrets["AWS_ACCESS_KEY_ID"] == new_key
+        assert repo.secrets["AWS_SECRET_ACCESS_KEY"] == data["secret_key"]
+
+        # rotate also recovers from a lost local file
+        path_access_key_json.unlink()
+        with pytest.raises(RuntimeError):
+            setup.s13_create_or_get_access_key()
+        setup.s31_rotate_access_key()
+        assert setup.s13_create_or_get_access_key(verbose=False)[0] != new_key
+
+        setup.teardown_all()
+        setup.teardown_all()  # idempotent
+        assert repo.secrets == {}
+        with pytest.raises(botocore.exceptions.ClientError):
+            iam.get_user(UserName=setup.iam_user_name)
         path_access_key_json.unlink(missing_ok=True)
 
 
