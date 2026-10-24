@@ -4,6 +4,9 @@ from simple_gh_aws_creds.impl import SetupGitHubRepo
 
 import json
 
+import pytest
+import botocore.exceptions
+
 from simple_gh_aws_creds.tests.mock_aws import BaseMockAwsTest
 from simple_gh_aws_creds.paths import path_enum
 
@@ -163,6 +166,104 @@ class TestSetupGitHubRepo(BaseMockAwsTest):
         setup.s22_delete_access_key()
         setup.s23_delete_iam_policy()
         setup.s24_delete_iam_user()
+
+    def test_edge_cases(self):
+        path_access_key_json = path_enum.dir_tmp.joinpath(
+            "test_edge_cases_access_key.json"
+        )
+        path_access_key_json.parent.mkdir(parents=True, exist_ok=True)
+        path_access_key_json.unlink(missing_ok=True)
+        setup = SetupGitHubRepo(
+            boto_ses=self.bsm.boto_ses,
+            aws_region="us-east-1",
+            iam_user_name="gh-ci-edge-cases",
+            tags={},
+            policy_document={
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": ["iam:ListAccountAliases"],
+                        "Resource": "*",
+                    },
+                ],
+            },
+            attached_policy_arn_list=[],
+            path_access_key_json=path_access_key_json,
+            github_user_name="MacHu-GWU",
+            github_repo_name="simple_gh_aws_creds-project",
+            github_token="github_token_here",
+        )
+        assert "gh-ci-edge-cases" in setup.iam_user_console_url
+        setup.print_github_workflow_example()
+
+        setup.s11_create_iam_user()
+        setup.s11_create_iam_user()  # user exists, no tags to sync
+        setup.s12_put_iam_policy()
+        access_key, _ = setup.s13_create_or_get_access_key()
+
+        # hot update: remote policies are overwritten to match the config,
+        # the user and its access key stay as they are
+        iam = setup.iam_client
+        iam.put_user_policy(
+            UserName=setup.iam_user_name,
+            PolicyName="manually-added-inline-policy",
+            PolicyDocument=json.dumps(setup.policy_document),
+        )
+        iam.attach_user_policy(
+            UserName=setup.iam_user_name,
+            PolicyArn=self.test_managed_policy_arn,
+        )
+        setup.policy_document["Statement"][0]["Action"] = ["iam:ListUsers"]
+        setup.s12_put_iam_policy()
+        inline_names = iam.list_user_policies(UserName=setup.iam_user_name)[
+            "PolicyNames"
+        ]
+        assert inline_names == [setup.policy_document_name]
+        doc = iam.get_user_policy(
+            UserName=setup.iam_user_name,
+            PolicyName=setup.policy_document_name,
+        )["PolicyDocument"]
+        if isinstance(doc, str):
+            doc = json.loads(doc)
+        assert doc["Statement"][0]["Action"] == ["iam:ListUsers"]
+        attached = iam.list_attached_user_policies(UserName=setup.iam_user_name)
+        assert attached["AttachedPolicies"] == []
+
+        setup.attached_policy_arn_list = [self.test_managed_policy_arn]
+        setup.s12_put_iam_policy()
+        setup.s12_put_iam_policy()  # already attached
+        attached = iam.list_attached_user_policies(UserName=setup.iam_user_name)
+        assert [dct["PolicyArn"] for dct in attached["AttachedPolicies"]] == [
+            self.test_managed_policy_arn
+        ]
+        assert setup.s13_create_or_get_access_key()[0] == access_key
+
+        # the local file is gone: the existing key cannot be reused
+        path_access_key_json.unlink()
+        with pytest.raises(RuntimeError):
+            setup.s13_create_or_get_access_key()
+
+        # the local file holds a key that no longer exists in AWS
+        path_access_key_json.write_text(
+            json.dumps({"access_key": "AKIA_STALE_KEY_0000", "secret_key": "x"})
+        )
+        with pytest.raises(RuntimeError):
+            setup.s13_create_or_get_access_key()
+
+        # a user still holding access keys cannot be deleted
+        setup.iam_client.create_access_key(UserName=setup.iam_user_name)
+        with pytest.raises(botocore.exceptions.ClientError):
+            setup.s24_delete_iam_user()
+
+        # every access key is deleted, not only the first one
+        setup.s22_delete_access_key()
+        res = setup.iam_client.list_access_keys(UserName=setup.iam_user_name)
+        assert res["AccessKeyMetadata"] == []
+
+        setup.s23_delete_iam_policy()
+        setup.s24_delete_iam_user()
+        path_access_key_json.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

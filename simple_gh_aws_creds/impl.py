@@ -37,6 +37,7 @@ from functools import cached_property
 
 import botocore.exceptions
 import boto3
+from github import Auth
 from github import Github
 from github import Repository
 
@@ -154,10 +155,19 @@ class SetupGitHubRepo:
     def github_secrets_url(self) -> str:
         return f"https://github.com/{self.github_user_name}/{self.github_repo_name}/settings/secrets/actions"
 
-    # printer(f"Preview at {url}")
+    @property
+    def iam_user_console_url(self) -> str:
+        """
+        AWS console URL of the IAM user's detail page.
+        """
+        return (
+            f"https://{self.aws_region}.console.aws.amazon.com/iam/home"
+            f"?region={self.aws_region}#/users/details/{self.iam_user_name}"
+        )
+
     @cached_property
     def gh(self) -> Github:  # pragma: no cover
-        return Github(self.github_token)
+        return Github(auth=Auth.Token(self.github_token))
 
     @cached_property
     def repo(self) -> Repository:  # pragma: no cover
@@ -185,46 +195,77 @@ class SetupGitHubRepo:
             printer("  ✅Successfully created IAM User.")
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "EntityAlreadyExists":
-                printer("  ✅IAM User already exists, do nothing.")
+                if self.tags:
+                    self.iam_client.tag_user(
+                        UserName=self.iam_user_name,
+                        Tags=[
+                            {"Key": key, "Value": value}
+                            for key, value in self.tags.items()
+                        ],
+                    )
+                printer("  ✅IAM User already exists, synced its tags.")
             else:  # pragma: no cover
                 raise e
+        printer(f"  👀Preview at {self.iam_user_console_url}")
 
     def s12_put_iam_policy(self):
         """
-        Attach minimal-privilege inline policy and AWS managed policies to the IAM user.
+        Make the IAM user's permissions exactly match ``policy_document`` and
+        ``attached_policy_arn_list``, overwriting whatever is there now.
 
-        This method implements the principle of least privilege by attaching only
-        the specific permissions required for the intended use case. Inline policies
-        are used instead of managed policies to ensure tight coupling between the
-        user and their permissions, making cleanup more reliable and preventing
-        permission drift.
+        - The inline policy :attr:`policy_document_name` is overwritten with
+          ``policy_document``, and any other inline policy on the user is deleted.
+        - Managed policies in ``attached_policy_arn_list`` are attached, and any
+          other managed policy attached to the user is detached.
 
-        Additionally, this method attaches any AWS managed policies specified in
-        attached_policy_arn_list. It checks for existing attachments to avoid
-        duplicate policy attachments.
-
-        The approach prevents the common security anti-pattern of using overly
-        broad permissions for automation, reducing the blast radius if credentials
-        are ever compromised.
+        It touches only the user's policies, never the user itself or its access
+        keys, so it can be run on its own to hot-update the permissions of an
+        existing user: edit ``policy_document`` or ``attached_policy_arn_list``,
+        then run this method again. The access key and the GitHub secrets keep
+        working, with the new permissions.
         """
         printer(f"🆕Step 1.2: Put IAM Policy {self.policy_document_name!r}")
 
-        # Attach inline policy
+        # Inline policies: overwrite ours, delete the others
         self.iam_client.put_user_policy(
             UserName=self.iam_user_name,
             PolicyName=self.policy_document_name,
             PolicyDocument=json.dumps(self.policy_document),
         )
         printer("  ✅Successfully put IAM inline policy.")
+        paginator = self.iam_client.get_paginator("list_user_policies")
+        for page in paginator.paginate(UserName=self.iam_user_name):
+            for policy_name in page.get("PolicyNames", []):
+                if policy_name != self.policy_document_name:
+                    self.iam_client.delete_user_policy(
+                        UserName=self.iam_user_name,
+                        PolicyName=policy_name,
+                    )
+                    printer(f"  ✅Deleted extra inline policy {policy_name!r}")
 
-        # Attach AWS managed policies if specified
-        if self.attached_policy_arn_list:
-            for policy_arn in self.attached_policy_arn_list:
+        # Managed policies: detach the ones not in the list, attach the missing ones
+        attached_arns = set()
+        paginator = self.iam_client.get_paginator("list_attached_user_policies")
+        for page in paginator.paginate(UserName=self.iam_user_name):
+            for policy in page.get("AttachedPolicies", []):
+                attached_arns.add(policy["PolicyArn"])
+        wanted_arns = set(self.attached_policy_arn_list)
+        for policy_arn in sorted(attached_arns - wanted_arns):
+            self.iam_client.detach_user_policy(
+                UserName=self.iam_user_name,
+                PolicyArn=policy_arn,
+            )
+            printer(f"  ✅Detached policy {policy_arn}")
+        for policy_arn in self.attached_policy_arn_list:
+            if policy_arn in attached_arns:
+                printer(f"  ✅Policy {policy_arn} already attached")
+            else:
                 self.iam_client.attach_user_policy(
                     UserName=self.iam_user_name,
                     PolicyArn=policy_arn,
                 )
                 printer(f"  ✅Successfully attached policy {policy_arn}")
+        printer(f"  👀Preview at {self.iam_user_console_url}?section=permissions")
 
     def s13_create_or_get_access_key(
         self,
@@ -251,7 +292,23 @@ class SetupGitHubRepo:
         res = self.iam_client.list_access_keys(UserName=self.iam_user_name)
         access_key_list = res.get("AccessKeyMetadata", [])
         if len(access_key_list):
-            data = json.loads(self.path_access_key_json.read_text())
+            # AWS returns the secret key only once, at creation time, so an
+            # existing key is usable only if its secret is in the local file.
+            existing_access_keys = [dct["AccessKeyId"] for dct in access_key_list]
+            data = {}
+            if self.path_access_key_json.exists():
+                data = json.loads(self.path_access_key_json.read_text())
+            if data.get("access_key") not in existing_access_keys:
+                masked = ", ".join(
+                    repr(mask_value(key)) for key in existing_access_keys
+                )
+                raise RuntimeError(
+                    f"IAM User {self.iam_user_name!r} already has access key {masked}, "
+                    f"but its secret key is not in {str(self.path_access_key_json)!r}. "
+                    f"AWS shows a secret key only when it is created, so it cannot be "
+                    f"recovered. Run s22_delete_access_key() to delete the old key, "
+                    f"then run s13_create_or_get_access_key() again to create a new one."
+                )
             access_key = data["access_key"]
             secret_key = data["secret_key"]
             if verbose:
@@ -268,6 +325,10 @@ class SetupGitHubRepo:
                 printer(
                     f"  ✅Successfully created new access key {mask_value(access_key)!r}"
                 )
+        if verbose:
+            printer(
+                f"  👀Preview at {self.iam_user_console_url}?section=security_credentials"
+            )
         return access_key, secret_key
 
     def s14_setup_github_secrets(self):  # pragma: no cover
@@ -306,6 +367,42 @@ class SetupGitHubRepo:
             except Exception as e:
                 printer(f"  ❌Failed to create GitHub Secret {secret_name!r}: {e}")
                 return
+        self.print_github_workflow_example()
+
+    def print_github_workflow_example(self):
+        """
+        Print a GitHub Actions workflow snippet that exposes the repository secrets
+        created by :meth:`s14_setup_github_secrets` as the environment variables
+        the AWS CLI and SDKs read.
+
+        See https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets
+        """
+        env_secret_pairs = [
+            ("AWS_DEFAULT_REGION", self.github_secret_name_aws_default_region),
+            ("AWS_ACCESS_KEY_ID", self.github_secret_name_aws_access_key_id),
+            ("AWS_SECRET_ACCESS_KEY", self.github_secret_name_aws_secret_access_key),
+        ]
+        env_lines = "\n".join(
+            f"      {env_name}: ${{{{ secrets.{secret_name} }}}}"
+            for env_name, secret_name in env_secret_pairs
+        )
+        printer("📝Use these secrets in .github/workflows/*.yml:")
+        printer(
+            "\n"
+            "jobs:\n"
+            "  aws-job:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    env:\n"
+            f"{env_lines}\n"
+            "    steps:\n"
+            "      - run: aws sts get-caller-identity\n"
+        )
+        printer(
+            "  ⚠️Secrets are not passed to workflows triggered by pull requests from forks."
+        )
+        printer(
+            "  📖Read more: https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets"
+        )
 
     def s21_delete_github_secrets(self):  # pragma: no cover
         """
@@ -330,8 +427,12 @@ class SetupGitHubRepo:
         ]
         for secret_name in key_list:
             try:
-                self.repo.delete_secret(secret_name)
-                printer(f"  ✅Successfully deleted GitHub Secret {secret_name!r}")
+                if self.repo.delete_secret(secret_name):
+                    printer(f"  ✅Successfully deleted GitHub Secret {secret_name!r}")
+                else:
+                    printer(
+                        f"  ✅GitHub Secret {secret_name!r} does not exist, nothing to delete."
+                    )
             except Exception as e:
                 printer(f"  ❌Failed to delete GitHub Secret {secret_name!r}: {e}")
 
@@ -360,12 +461,15 @@ class SetupGitHubRepo:
                 raise e
         access_key_list = res.get("AccessKeyMetadata", [])
         if len(access_key_list):
-            access_key = access_key_list[0]["AccessKeyId"]
-            self.iam_client.delete_access_key(
-                UserName=self.iam_user_name,
-                AccessKeyId=access_key,
-            )
-            printer(f"  ✅Successfully deleted access key {mask_value(access_key)!r}")
+            for dct in access_key_list:
+                access_key = dct["AccessKeyId"]
+                self.iam_client.delete_access_key(
+                    UserName=self.iam_user_name,
+                    AccessKeyId=access_key,
+                )
+                printer(
+                    f"  ✅Successfully deleted access key {mask_value(access_key)!r}"
+                )
         else:
             printer("  ✅Access key does not exist, nothing to delete.")
 
@@ -445,5 +549,11 @@ class SetupGitHubRepo:
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "NoSuchEntity":
                 printer("  ✅IAM User does not exist, nothing to delete.")
+            elif e.response["Error"]["Code"] == "DeleteConflict":
+                printer(
+                    "  ❌IAM User still has access keys or policies, "
+                    "run s22_delete_access_key() and s23_delete_iam_policy() first."
+                )
+                raise e
             else:  # pragma: no cover
                 raise e
