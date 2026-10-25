@@ -132,3 +132,17 @@ To upgrade to latest version:
 .. code-block:: console
 
     $ pip install --upgrade simple-gh-aws-creds
+
+
+.. _use-with-ai-coding-agents:
+
+Use with AI Coding Agents
+------------------------------------------------------------------------------
+
+This repo ships an `Agent Skill <https://code.claude.com/docs/en/skills>`_ that documents the public API of ``simple_gh_aws_creds``, so an AI coding agent such as Claude Code can use the library without reading its source. It lives in `.claude/skills/pypi-simple_gh_aws_creds <https://github.com/MacHu-GWU/simple_gh_aws_creds-project/tree/main/.claude/skills/pypi-simple_gh_aws_creds>`_. To use it in your project, copy it into your project's ``.claude/skills/`` folder. Run this from your project's root:
+
+.. code-block:: console
+
+    $ git clone --depth 1 https://github.com/MacHu-GWU/simple_gh_aws_creds-project.git /tmp/simple_gh_aws_creds-project
+    $ mkdir -p .claude/skills
+    $ cp -R /tmp/simple_gh_aws_creds-project/.claude/skills/pypi-simple_gh_aws_creds .claude/skills/
