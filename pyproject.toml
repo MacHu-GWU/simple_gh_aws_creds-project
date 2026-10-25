@@ -3,7 +3,7 @@
 name = "simple_gh_aws_creds"
 # Bump before each release (https://semver.org/), then ``mise run inst`` to update ``uv.lock``.
 version = "0.2.0"
-description = "Simple Python library to quickly set up AWS credentials for GitHub Actions without complex OIDC configuration."
+description = "Create a per-repository AWS IAM user and store its access key as GitHub Actions secrets, with idempotent setup, key rotation, and teardown."
 # An SPDX license expression (PEP 639); keep ``LICENSE.txt`` in sync.
 # Read: https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license-and-license-files
 # Valid identifiers: https://spdx.org/licenses/
