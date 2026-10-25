@@ -6,7 +6,7 @@ What this library does: see `README.rst`.
 
 Package: `simple_gh_aws_creds/` (import name `simple_gh_aws_creds`).
 
-How to maintain this library: the `maintain-simple_gh_aws_creds-*` skills, once they exist (create them with `pywf-oss-write-maintain-skill`).
+How to maintain this library: load `maintain-simple_gh_aws_creds-base` before changing code, tests, the CLI, or the integration test config. To run the integration test against the real AWS account and this GitHub repository, use `maintain-simple_gh_aws_creds-run-integration-test`. Update the family with `pywf-oss-write-maintain-skill`.
 
 <!-- END project block -->
 
